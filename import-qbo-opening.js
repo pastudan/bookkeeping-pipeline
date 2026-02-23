@@ -139,12 +139,16 @@ function parseAmount(raw) {
   return parseFloat(clean);
 }
 
-for (const rawLine of lines) {
-  // Strip surrounding quotes from the whole line if present
+// Skip the first 4 header lines (report title, entity name, date, blank)
+// and the trailing footer line (Accrual Basis ... timestamp)
+const dataLines = lines.slice(4).filter(
+  (l) => !/accrual basis/i.test(l)
+);
+
+for (const rawLine of dataLines) {
   const line = rawLine.replace(/^\s*"|"\s*$/g, "").trim();
   if (!line) continue;
 
-  // Split on first comma that is not inside quotes
   const commaIdx = rawLine.indexOf(",");
   if (commaIdx === -1) continue;
   const label = rawLine.slice(0, commaIdx).replace(/^"|"$/g, "").trim();
@@ -152,9 +156,8 @@ for (const rawLine of lines) {
 
   if (!label) continue;
 
-  // Skip header rows
+  // Skip the column-header row and section separators
   if (
-    label === "Balance Sheet" ||
     label === "Distribution account" ||
     label === "Liabilities and Equity"
   ) continue;
