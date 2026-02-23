@@ -152,7 +152,43 @@ function printChart(chart) {
   }
 }
 
+async function bootstrapFromBeancount() {
+  const { readFileSync } = await import("fs");
+  const { MAIN_BEANCOUNT } = await import("./config.js");
+  const content = readFileSync(MAIN_BEANCOUNT, "utf8");
+  const lines = content.split("\n");
+  const accounts = [];
+  let i = 0;
+  while (i < lines.length) {
+    const m = lines[i].match(/^\d{4}-\d{2}-\d{2}\s+open\s+([\w:]+)\s+USD/);
+    if (m) {
+      const account = m[1];
+      let description = account;
+      if (lines[i + 1] && lines[i + 1].trim().startsWith("description:")) {
+        description = lines[i + 1].trim().replace(/description:\s*"/, "").replace(/"$/, "");
+        i++;
+      }
+      if (account !== "Equity:Opening") {
+        accounts.push({ account, description, isNew: false, reasoning: "Defined in main.beancount" });
+      }
+    }
+    i++;
+  }
+  const chart = {
+    accounts,
+    notes: `Bootstrapped from main.beancount for ${entity.name}.`,
+    suggestedChanges: "",
+  };
+  writeFileSync(paths.chartOfAccounts, JSON.stringify(chart, null, 2));
+  console.log(`Bootstrapped ${accounts.length} accounts from main.beancount → ${paths.chartOfAccounts}`);
+  accounts.forEach((a) => console.log(`  ${a.account}`));
+}
+
 async function main() {
+  if (process.argv.includes("--from-beancount")) {
+    return bootstrapFromBeancount();
+  }
+
   const dryRun = !process.argv.includes("--send");
 
   const existingChart = existsSync(paths.chartOfAccounts)
