@@ -7,6 +7,7 @@ import {
   paths,
   loadJSON,
   saveTransactions,
+  entity,
 } from "./config.js";
 
 if (!MERCURY_API_TOKEN) {
@@ -66,7 +67,9 @@ function renderProgress(i, total, downloaded, skipped, noReceipt, label) {
 async function main() {
   const transactions = loadJSON(paths.transactions);
   const total = transactions.length;
+  const openingDate = entity.openingDate || null;
   console.log(`Processing ${total} transactions for attachments ...`);
+  if (openingDate) console.log(`  Skipping attachments for transactions before ${openingDate}`);
 
   const txnMap = new Map(transactions.map((t) => [t.id, t]));
 
@@ -82,10 +85,19 @@ async function main() {
     const desc = (mercury.counterpartyName || mercury.note || "Unknown").slice(0, 30);
 
     // Fast skip — no API call needed:
-    //   receipt != null + file on disk  → already downloaded
+    //   before openingDate              → not part of our beancount books
     //   receipt === null                → previously checked, no receipt exists
+    //   receipt != null + file on disk  → already downloaded
     // Only call Mercury when receipt key is absent (never checked) or the
     // file has been deleted from disk since we recorded it.
+    const postedAt = mercury.postedAt || "";
+    if (openingDate && postedAt && postedAt < openingDate) {
+      // Mark as null so we never check again
+      if (txn.receipt === undefined) txnMap.get(id).receipt = null;
+      noReceipt++;
+      renderProgress(i, total, downloaded, skipped, noReceipt, `∅     ${desc}`);
+      continue;
+    }
     if (txn.receipt === null) {
       noReceipt++;
       renderProgress(i, total, downloaded, skipped, noReceipt, `∅     ${desc}`);
