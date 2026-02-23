@@ -1,0 +1,13 @@
+{
+  "name": "bookkeeping-pipeline",
+  "version": "1.0.0",
+  "description": "Shared accounting pipeline: Mercury → OCR → LLM categorization → Beancount",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google/genai": "^1.42.0",
+    "dotenv": "^17.3.1"
+  }
+}
