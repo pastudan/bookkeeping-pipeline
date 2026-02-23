@@ -13,15 +13,18 @@ if (!MERCURY_API_TOKEN || !MERCURY_ACCOUNT_ID) {
   process.exit(1);
 }
 
+// Support multiple account IDs (comma-separated in MERCURY_ACCOUNT_ID)
+const ACCOUNT_IDS = MERCURY_ACCOUNT_ID.split(",").map((s) => s.trim()).filter(Boolean);
+
 const START_DATE = "2000-01-01";
 
 function today() {
   return new Date().toISOString().split("T")[0];
 }
 
-async function fetchPage(limit, offset, start, end) {
+async function fetchPage(accountId, limit, offset, start, end) {
   const url =
-    `${MERCURY_API_BASE}/account/${MERCURY_ACCOUNT_ID}/transactions` +
+    `${MERCURY_API_BASE}/account/${accountId}/transactions` +
     `?limit=${limit}&offset=${offset}&start=${start}&end=${end}`;
 
   const res = await fetch(url, {
@@ -37,13 +40,13 @@ async function fetchPage(limit, offset, start, end) {
   return { transactions: data.transactions || [], total: data.total ?? null };
 }
 
-async function fetchAll(start, end) {
+async function fetchAll(accountId, start, end) {
   const limit = 500;
   let offset = 0;
   const all = [];
 
   while (true) {
-    const { transactions, total } = await fetchPage(limit, offset, start, end);
+    const { transactions, total } = await fetchPage(accountId, limit, offset, start, end);
     if (transactions.length === 0) break;
 
     all.push(...transactions);
@@ -61,9 +64,18 @@ async function fetchAll(start, end) {
 async function main() {
   const end = today();
   console.log(`Fetching all transactions from ${START_DATE} to ${end} ...`);
+  console.log(`Accounts: ${ACCOUNT_IDS.join(", ")}`);
 
-  const fetched = await fetchAll(START_DATE, end);
-  console.log(`Fetched ${fetched.length} transactions total`);
+  const allFetched = [];
+  for (const accountId of ACCOUNT_IDS) {
+    console.log(`\nAccount ${accountId}:`);
+    const fetched = await fetchAll(accountId, START_DATE, end);
+    console.log(`  ${fetched.length} transactions`);
+    allFetched.push(...fetched);
+  }
+
+  const fetched = allFetched;
+  console.log(`\nFetched ${fetched.length} transactions total across ${ACCOUNT_IDS.length} account(s)`);
 
   // Load existing records to preserve receipt / ocr / bookkeeping namespaces.
   const existing = new Map();
