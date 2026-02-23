@@ -138,9 +138,27 @@ async function main() {
   const chart = loadJSON(paths.chartOfAccounts);
 
   const txnMap = new Map(transactions.map((t) => [t.id, t]));
+  // Auto-categorize internal transfers (e.g. Mercury account-to-account sweeps)
+  // so the LLM never sees them and they always cancel correctly in the ledger.
+  let autoCount = 0;
+  for (const t of transactions) {
+    if (!t.bookkeeping && t.mercury?.kind === "internalTransfer") {
+      t.bookkeeping = {
+        account: "Assets:Bank:Mercury",
+        reasoning: "Internal Mercury account transfer — auto-categorized",
+        override: true,
+      };
+      autoCount++;
+    }
+  }
+  if (autoCount > 0) {
+    saveTransactions(transactions);
+    console.log(`Auto-categorized ${autoCount} internal transfer(s) as Assets:Bank:Mercury`);
+  }
+
   const openingDate = entity.openingDate || "1900-01-01";
   const remaining = transactions.filter((t) => {
-    if (t.bookkeeping) return false;  // already categorized
+    if (t.bookkeeping) return false;  // already categorized (includes auto above)
     // Skip transactions before the opening date (covered by QBO/prior system)
     const postedAt = t.mercury?.postedAt || "";
     if (postedAt && postedAt < openingDate) return false;
