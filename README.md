@@ -46,7 +46,8 @@ books-mycompany/
   "entityType": "LLC",
   "formationDate": "2025-01-01",
   "description": "Brief description of the business and its primary activity",
-  "dataSources": ["mercury"]
+  "dataSources": ["mercury"],
+  "openingDate": "2025-01-01"
 }
 ```
 

@@ -138,7 +138,14 @@ async function main() {
   const chart = loadJSON(paths.chartOfAccounts);
 
   const txnMap = new Map(transactions.map((t) => [t.id, t]));
-  const remaining = transactions.filter((t) => !t.bookkeeping);
+  const openingDate = entity.openingDate || "1900-01-01";
+  const remaining = transactions.filter((t) => {
+    if (t.bookkeeping) return false;  // already categorized
+    // Skip transactions before the opening date (covered by QBO/prior system)
+    const postedAt = t.mercury?.postedAt || "";
+    if (postedAt && postedAt < openingDate) return false;
+    return true;
+  });
   const alreadyDone = transactions.length - remaining.length;
 
   console.log(`Transactions: ${remaining.length} to categorize, ${alreadyDone} already done`);

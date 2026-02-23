@@ -71,7 +71,15 @@ async function ocrOneReceipt(transaction) {
 async function main() {
   const transactions = loadJSON(paths.transactions);
 
-  const needsOcr = (t) => t.receipt != null && (!t.ocr || t.ocr.error);
+  const openingDate = entity.openingDate || "1900-01-01";
+  const needsOcr = (t) => {
+    if (!t.receipt) return false;
+    if (t.ocr && !t.ocr.error) return false;
+    // Skip receipts for transactions before the opening date (covered by QBO/prior system)
+    const postedAt = t.mercury?.postedAt || "";
+    if (postedAt && postedAt < openingDate) return false;
+    return true;
+  };
   const toProcess = transactions.filter(needsOcr);
   const alreadyDone = transactions.filter((t) => t.ocr && !t.ocr.error).length;
 
