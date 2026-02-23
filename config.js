@@ -118,9 +118,10 @@ export function loadText(path) {
 
 // Parse --year flag, default current year
 export function parseYear() {
+  // Accept: node script.js 2025  OR  node script.js --year 2025
+  const positional = process.argv.slice(2).find((a) => /^\d{4}$/.test(a));
+  if (positional) return parseInt(positional, 10);
   const idx = process.argv.indexOf("--year");
-  if (idx !== -1 && process.argv[idx + 1]) {
-    return parseInt(process.argv[idx + 1], 10);
-  }
+  if (idx !== -1 && process.argv[idx + 1]) return parseInt(process.argv[idx + 1], 10);
   return new Date().getFullYear();
 }
