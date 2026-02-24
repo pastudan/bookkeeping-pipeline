@@ -88,20 +88,23 @@ async function main() {
 
   // Upsert: always overwrite the mercury namespace (picks up updated notes /
   // attachments), but keep any other namespaces intact.
-  let newCount = 0;
+  const SKIP_STATUSES = new Set(["failed", "cancelled"]);
+  let newCount = 0, skippedFailed = 0;
   const merged = new Map(existing);
   for (const txn of fetched) {
+    if (SKIP_STATUSES.has(txn.status)) { skippedFailed++; continue; }
     const { id, ...mercuryFields } = txn;
     const prior = merged.get(id);
     if (!prior) newCount++;
     merged.set(id, {
       id,
       mercury: mercuryFields,
-      ...(prior?.receipt  !== undefined && { receipt:     prior.receipt }),
-      ...(prior?.ocr      !== undefined && { ocr:         prior.ocr }),
+      ...(prior?.receipt     !== undefined && { receipt:     prior.receipt }),
+      ...(prior?.ocr         !== undefined && { ocr:         prior.ocr }),
       ...(prior?.bookkeeping !== undefined && { bookkeeping: prior.bookkeeping }),
     });
   }
+  if (skippedFailed > 0) console.log(`Skipped ${skippedFailed} failed/cancelled transactions`);
 
   const sorted = [...merged.values()].sort((a, b) => {
     const da = a.mercury?.postedAt || a.mercury?.createdAt || "";
