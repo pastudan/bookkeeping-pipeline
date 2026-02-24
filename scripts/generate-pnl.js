@@ -24,6 +24,40 @@ const ENTITY_ROOT = resolve(__dirname, "../..");
 // Load entity metadata
 const entity = JSON.parse(readFileSync(resolve(ENTITY_ROOT, "entity.json"), "utf8"));
 
+// Load optional accountant notes (pnl-notes.md in entity root)
+const notesPath = resolve(ENTITY_ROOT, "pnl-notes.md");
+const notesRaw  = existsSync(notesPath) ? readFileSync(notesPath, "utf8") : null;
+
+// Minimal markdown → HTML: ##/# headings, **bold**, bullet lists, blank-line paragraphs
+function renderNotes(md) {
+  const lines = md.split("\n");
+  const out   = [];
+  let inList  = false;
+  for (const raw of lines) {
+    const line = raw
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    if (/^## (.+)/.test(line)) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<h3>${line.replace(/^## /, "")}</h3>`);
+    } else if (/^# (.+)/.test(line)) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<h2>${line.replace(/^# /, "")}</h2>`);
+    } else if (/^- (.+)/.test(line)) {
+      if (!inList) { out.push("<ul>"); inList = true; }
+      out.push(`<li>${line.replace(/^- /, "")}</li>`);
+    } else if (line.trim() === "") {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push("");
+    } else {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<p>${line}</p>`);
+    }
+  }
+  if (inList) out.push("</ul>");
+  return out.join("\n");
+}
+
 // ── CLI args ─────────────────────────────────────────────────────────────────
 
 function arg(flag, defaultVal) {
@@ -359,6 +393,15 @@ const html = `<!doctype html>
     table.collapsed tr.line:not([data-depth="0"]) { display:none; }
     table.collapsed tr.txn-detail { display:none; }
 
+    /* Accountant notes */
+    .accountant-notes { margin-top:40px; padding-top:24px; border-top:2px solid #e2e8f0; }
+    .accountant-notes h2 { font-size:15px; font-weight:700; color:#0f172a; margin:0 0 16px; }
+    .accountant-notes h3 { font-size:13px; font-weight:600; color:#334155; margin:20px 0 6px; text-transform:uppercase; letter-spacing:.05em; }
+    .accountant-notes p  { font-size:13px; color:#475569; margin:4px 0 10px; line-height:1.6; }
+    .accountant-notes ul { font-size:13px; color:#475569; margin:4px 0 10px; padding-left:20px; }
+    .accountant-notes li { margin-bottom:4px; line-height:1.6; }
+    .accountant-notes strong { color:#1e293b; }
+
     @media print {
       .no-print { display:none !important; }
       body { font-size:11px; }
@@ -401,6 +444,10 @@ const html = `<!doctype html>
       </tbody>
     </table>
     <p class="note">GAAP presentation: revenues less operating expenses = net income. Click any line item to expand individual transactions.</p>
+
+    ${notesRaw ? `<div class="accountant-notes">
+      ${renderNotes(notesRaw)}
+    </div>` : ""}
   </main>
 
   <script>
