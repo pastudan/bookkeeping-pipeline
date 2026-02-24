@@ -61,10 +61,17 @@ function generateTransaction(txn) {
     amount      = parseFloat(chase.amount || 0);
     tag         = txn.id ? ` #chase-${txn.id}` : "";
     bankAccount = "Liabilities:CreditCard:ChaseInk";
+  } else if (txn.source === "wells-fargo") {
+    const wf    = txn.wellsFargo || {};
+    date        = wf.date || wf.postedAt?.split("T")[0] || "Unknown";
+    desc        = (wf.description || "Unknown").replace(/\\+/g, "").replace(/"/g, '\\"');
+    amount      = parseFloat(wf.amount || 0);
+    tag         = txn.id ? ` #wf-${txn.id}` : "";
+    bankAccount = "Assets:Bank:WellsFargo";
   } else {
     const mercury = txn.mercury || {};
     date        = mercury.postedAt ? mercury.postedAt.split("T")[0] : "Unknown";
-    desc        = (mercury.counterpartyName || mercury.note || "Unknown").replace(/"/g, '\\"');
+    desc        = (mercury.description || mercury.counterpartyName || mercury.note || "Unknown").replace(/"/g, '\\"');
     amount      = parseFloat(mercury.amount || 0);
     tag         = txn.id ? ` #mercury-${txn.id}` : "";
     bankAccount = "Assets:Bank:Mercury";
@@ -113,9 +120,10 @@ function main() {
     // Skip failed/cancelled Mercury transactions — money never moved
     if (t.mercury?.status === "failed" || t.mercury?.status === "cancelled") return false;
     // Determine the transaction date by source
-    const date = t.source === "chase"
-      ? (t.chase?.postDate || "")
-      : (t.mercury?.postedAt || "").split("T")[0];
+    let date;
+    if (t.source === "chase")        date = t.chase?.postDate || "";
+    else if (t.source === "wells-fargo") date = t.wellsFargo?.date || "";
+    else                             date = (t.mercury?.postedAt || "").split("T")[0];
     return date.startsWith(`${YEAR}-`);
   });
 
@@ -124,9 +132,11 @@ function main() {
   console.log(`  ${chart.accounts.length} accounts`);
 
   // Sort transactions by date (newest first, matching existing file convention)
-  const getDate = (t) => t.source === "chase"
-    ? (t.chase?.postDate || "0000-00-00")
-    : (t.mercury?.postedAt || "0000-00-00").split("T")[0];
+  const getDate = (t) => {
+    if (t.source === "chase")        return t.chase?.postDate || "0000-00-00";
+    if (t.source === "wells-fargo")  return t.wellsFargo?.date || "0000-00-00";
+    return (t.mercury?.postedAt || "0000-00-00").split("T")[0];
+  };
 
   const sorted = [...categorized].sort((a, b) => getDate(b).localeCompare(getDate(a)));
 

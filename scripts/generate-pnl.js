@@ -28,33 +28,64 @@ const entity = JSON.parse(readFileSync(resolve(ENTITY_ROOT, "entity.json"), "utf
 const notesPath = resolve(ENTITY_ROOT, "pnl-notes.md");
 const notesRaw  = existsSync(notesPath) ? readFileSync(notesPath, "utf8") : null;
 
-// Minimal markdown → HTML: ##/# headings, **bold**, bullet lists, blank-line paragraphs
+// Minimal markdown → HTML: headings, bold, bullet lists, tables, paragraphs
 function renderNotes(md) {
-  const lines = md.split("\n");
-  const out   = [];
-  let inList  = false;
-  for (const raw of lines) {
-    const line = raw
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    if (/^## (.+)/.test(line)) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<h3>${line.replace(/^## /, "")}</h3>`);
-    } else if (/^# (.+)/.test(line)) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<h2>${line.replace(/^# /, "")}</h2>`);
-    } else if (/^- (.+)/.test(line)) {
-      if (!inList) { out.push("<ul>"); inList = true; }
-      out.push(`<li>${line.replace(/^- /, "")}</li>`);
-    } else if (line.trim() === "") {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push("");
-    } else {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<p>${line}</p>`);
+  const escape = (s) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (s) =>
+    escape(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  const lines  = md.split("\n");
+  const out    = [];
+  let inList   = false;
+  let inTable  = false;
+  let paraLines = [];
+
+  function flushPara() {
+    if (paraLines.length) {
+      out.push(`<p>${paraLines.join(" ")}</p>`);
+      paraLines = [];
     }
   }
-  if (inList) out.push("</ul>");
+  function closeBlocks() {
+    flushPara();
+    if (inList)  { out.push("</ul>");   inList  = false; }
+    if (inTable) { out.push("</table>"); inTable = false; }
+  }
+
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+
+    if (/^## .+/.test(trimmed)) {
+      closeBlocks();
+      out.push(`<h3>${inline(trimmed.replace(/^## /, ""))}</h3>`);
+    } else if (/^# .+/.test(trimmed)) {
+      closeBlocks();
+      out.push(`<h2>${inline(trimmed.replace(/^# /, ""))}</h2>`);
+    } else if (/^- .+/.test(trimmed)) {
+      flushPara();
+      if (inTable) { out.push("</table>"); inTable = false; }
+      if (!inList) { out.push("<ul>"); inList = true; }
+      out.push(`<li>${inline(trimmed.replace(/^- /, ""))}</li>`);
+    } else if (/^\|/.test(trimmed)) {
+      // Markdown table row — skip separator rows (|---|---|)
+      flushPara();
+      if (inList) { out.push("</ul>"); inList = false; }
+      if (/^\|[-| :]+\|$/.test(trimmed)) continue; // separator
+      if (!inTable) { out.push('<table class="notes-table">'); inTable = true; }
+      const cells = trimmed.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      // Use <th> for first row of each table block
+      const tag = !out[out.length - 1]?.includes("<tr") ? "th" : "td";
+      out.push(`<tr>${cells.map((c) => `<${tag}>${inline(c)}</${tag}>`).join("")}</tr>`);
+    } else if (trimmed === "") {
+      closeBlocks();
+    } else {
+      if (inList)  { out.push("</ul>");   inList  = false; }
+      if (inTable) { out.push("</table>"); inTable = false; }
+      paraLines.push(inline(trimmed));
+    }
+  }
+  closeBlocks();
   return out.join("\n");
 }
 
@@ -401,6 +432,9 @@ const html = `<!doctype html>
     .accountant-notes ul { font-size:13px; color:#475569; margin:4px 0 10px; padding-left:20px; }
     .accountant-notes li { margin-bottom:4px; line-height:1.6; }
     .accountant-notes strong { color:#1e293b; }
+    .accountant-notes .notes-table { border-collapse:collapse; margin:8px 0 14px; font-size:13px; width:100%; }
+    .accountant-notes .notes-table th { background:#f1f5f9; color:#0f172a; font-weight:600; text-align:left; padding:6px 10px; border:1px solid #e2e8f0; }
+    .accountant-notes .notes-table td { padding:5px 10px; border:1px solid #e2e8f0; color:#334155; vertical-align:top; }
 
     @media print {
       .no-print { display:none !important; }
